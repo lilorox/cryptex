@@ -1,42 +1,39 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
-	"github.com/beldur/kraken-go-api-client"
 	"github.com/urfave/cli"
+
+	"github.com/lilorox/cryptex/client"
+	"github.com/lilorox/cryptex/client/kraken"
 )
 
-type CryptexClient struct {
-	API struct {
-		Kraken *krakenapi.KrakenApi
-	}
-}
-
-func (c *CryptexClient) ConnectKraken(apiKey, privKey string) {
-	c.API.Kraken = krakenapi.New(apiKey, privKey)
-}
-
-func (c *CryptexClient) ListOpenOrders(ctx *cli.Context) error {
-	result, err := c.API.Kraken.OpenOrders(nil)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Open orders: %+v\n", result)
-
-	return nil
-}
-
 func main() {
-	client := &CryptexClient{}
+	client := &client.CryptexClient{
+		DefaultFiat: "EUR",
+	}
 
 	app := cli.NewApp()
 	app.Name = "cryptex"
 	app.Usage = "Manage your account on different cryptocurrency exchange"
 
 	app.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:   "cex-userid",
+			Usage:  "CEX.io UserID",
+			EnvVar: "CEX_USERID",
+		},
+		cli.StringFlag{
+			Name:   "cex-api-key",
+			Usage:  "CEX.io API key",
+			EnvVar: "CEX_API_KEY",
+		},
+		cli.StringFlag{
+			Name:   "cex-secret-key",
+			Usage:  "CEX.io Secret key",
+			EnvVar: "CEX_SECRET_KEY",
+		},
 		cli.StringFlag{
 			Name:   "kraken-api-key",
 			Usage:  "Kraken API key",
@@ -51,25 +48,45 @@ func main() {
 
 	app.Before = func(ctx *cli.Context) error {
 		if ctx.String("kraken-api-key") != "" && ctx.String("kraken-private-key") != "" {
-			client.ConnectKraken(ctx.String("kraken-api-key"), ctx.String("kraken-private-key"))
+			k := kraken.New(
+				ctx.String("kraken-api-key"),
+				ctx.String("kraken-private-key"),
+			)
+			client.RegisterTradingClient(k)
 		}
+
+		/*
+			if ctx.String("cex-userid") != "" && ctx.String("cex-api-key") != "" && ctx.String("cex-secret-key") != "" {
+				client.ConnectKraken(ctx.String("kraken-api-key"), ctx.String("kraken-private-key"))
+			}
+		*/
 		return nil
 	}
 
 	app.Commands = []cli.Command{
 		cli.Command{
-			Name:    "list",
-			Aliases: []string{"l"},
-			Usage:   "List open orders",
-			Subcommands: []cli.Command{
-				cli.Command{
-					Name:    "orders",
-					Aliases: []string{"o"},
-					Usage:   "Manipulate orders",
-					Action:  client.ListOpenOrders,
-				},
+			Name:    "balance",
+			Aliases: []string{"b"},
+			Usage:   "Show current balances",
+			Action: func(ctx *cli.Context) error {
+				return client.ShowBalances()
 			},
 		},
+		/*
+			cli.Command{
+				Name:    "list",
+				Aliases: []string{"l"},
+				Usage:   "List open orders",
+				Subcommands: []cli.Command{
+					cli.Command{
+						Name:    "orders",
+						Aliases: []string{"o"},
+						Usage:   "Manipulate orders",
+						Action:  client.ListOpenOrders,
+					},
+				},
+			},
+		*/
 	}
 
 	app.Run(os.Args)
