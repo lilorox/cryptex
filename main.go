@@ -1,24 +1,41 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/urfave/cli"
 
 	"github.com/lilorox/cryptex/client"
 	"github.com/lilorox/cryptex/client/kraken"
+	"github.com/lilorox/cryptex/output"
 )
 
+var formatter output.OutputFormatter
+
+const (
+	BadArgument = iota
+	BalanceError
+)
+
+func handleError(err error, statusCode int) *cli.ExitError {
+	return cli.NewExitError(formatter.FormatError(err), statusCode)
+}
+
 func main() {
-	client := &client.CryptexClient{
-		DefaultFiat: "EUR",
-	}
+	cryptex := client.New("EUR")
 
 	app := cli.NewApp()
 	app.Name = "cryptex"
 	app.Usage = "Manage your account on different cryptocurrency exchange"
 
 	app.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:   "output",
+			Usage:  "Specify the output type: pretty (default), json",
+			Value:  "pretty",
+			EnvVar: "OUTPUT",
+		},
 		cli.StringFlag{
 			Name:   "cex-userid",
 			Usage:  "CEX.io UserID",
@@ -47,12 +64,19 @@ func main() {
 	}
 
 	app.Before = func(ctx *cli.Context) error {
+		switch ctx.String("output") {
+		case "pretty":
+			formatter = &output.PrettyFormatter{}
+		default:
+			return cli.NewExitError(fmt.Sprintf("Unknown output type '%s'", ctx.String("output")), BadArgument)
+		}
+
 		if ctx.String("kraken-api-key") != "" && ctx.String("kraken-private-key") != "" {
 			k := kraken.New(
 				ctx.String("kraken-api-key"),
 				ctx.String("kraken-private-key"),
 			)
-			client.RegisterTradingClient(k)
+			cryptex.RegisterTradingClient(k)
 		}
 
 		/*
@@ -69,7 +93,12 @@ func main() {
 			Aliases: []string{"b"},
 			Usage:   "Show current balances",
 			Action: func(ctx *cli.Context) error {
-				return client.ShowBalances()
+				b, err := cryptex.Balances()
+				if err != nil {
+					return handleError(err, BalanceError)
+				}
+				formatter.ShowBalance(b)
+				return nil
 			},
 		},
 		/*

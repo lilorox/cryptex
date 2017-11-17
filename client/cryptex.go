@@ -1,41 +1,51 @@
 package client
 
 import (
+	"errors"
 	"fmt"
-	"strings"
-	"unicode/utf8"
-	//"github.com/beldur/kraken-go-api-client"
+
+	"github.com/lilorox/cryptex/types"
 )
 
 type CryptexClient struct {
-	DefaultFiat string
-	clients     []TradingClient
+	FiatReference string
+	clients       []TradingClient
+}
+
+func New(fiat string) *CryptexClient {
+	return &CryptexClient{
+		FiatReference: fiat,
+	}
 }
 
 func (c *CryptexClient) RegisterTradingClient(t TradingClient) {
 	c.clients = append(c.clients, t)
 }
 
-func (c *CryptexClient) ShowBalances() error {
-	for _, client := range c.clients {
-		balance, err := client.Balance()
-		if err != nil {
-			fmt.Printf("Client %s return error %s\n", client.GetName(), err.Error())
-			return err
-		}
-		name := client.GetName()
-		underline := strings.Repeat("\u2500", utf8.RuneCountInString(name)+14)
-		fmt.Printf(
-			"\u250c Balance on %s :\n\u2514%s\n",
-			client.GetName(),
-			underline,
-		)
-		for cur, value := range balance {
-			fmt.Printf("  %- 10s %f\n", cur, value)
-		}
+func (c *CryptexClient) Balances() (*types.Balance, error) {
+	if len(c.clients) == 0 {
+		return nil, errors.New("No registered clients")
 	}
 
-	return nil
+	b := types.Balance{
+		FiatCurrency:   c.FiatReference,
+		ClientBalances: make([]types.ClientBalance, len(c.clients)),
+	}
+
+	for i, client := range c.clients {
+		balance, err := client.Balance()
+		if err != nil {
+			return nil, fmt.Errorf("Client %s return error %s\n", client.GetName(), err.Error())
+		}
+
+		cb := types.ClientBalance{
+			Origin:     client.GetName(),
+			Currencies: balance,
+		}
+		b.ClientBalances[i] = cb
+	}
+
+	return &b, nil
 }
 
 /*

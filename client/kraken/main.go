@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	//"github.com/beldur/kraken-go-api-client"
 )
 
 const (
@@ -106,7 +107,6 @@ func (kc *KrakenClient) doRequest(reqURL string, values url.Values, headers map[
 	if err != nil {
 		return nil, fmt.Errorf("Could not read the response: %s", err.Error())
 	}
-	fmt.Printf("DEBUG, body=%+v\n", string(body))
 
 	// Check mime type of response
 	mimeType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
